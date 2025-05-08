@@ -1,4 +1,4 @@
-# GraphSurv: Multi-Modal Graph Neural Network for Competing Risks Prediction
+# Multi-Modal Graph Neural Network for Competing Risks Prediction
 
 This repository contains the official implementation of **GraphSurv**, a spatio-temporal graph neural network designed for multi-modal survival analysis with competing risks. The model is evaluated on MC-MED, MIMIC-IV, eICU, PBC2, and SUPPORT datasets.
 
