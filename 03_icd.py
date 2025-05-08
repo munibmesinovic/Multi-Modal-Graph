@@ -24,13 +24,9 @@ icd_one_hot = pd.get_dummies(pmh['Code'])
 # Sum over patients to get patient-ICD matrix
 patient_icd_matrix = icd_one_hot.groupby('MRN').sum()
 
-patient_icd_matrix
-
 visits.set_index('MRN', inplace=True)
 
 visits = visits.merge(patient_icd_matrix, how='left', left_index=True, right_index=True)
 visits = visits.fillna(0)
 
 visits.reset_index(inplace=True)
-
-visits
