@@ -61,32 +61,4 @@ visits['Triage_acuity_ordinal'].fillna(-1, inplace=True)
 
 visits = visits.drop(['ED_dispo', 'Triage_acuity'],axis = 1)
 
-# Calculate the distribution of 'Age'
-age_distribution = visits['Age'].describe()
-print("Age Distribution:\n", age_distribution)
-
 visits = visits[visits['ED_LOS'] <= 24]
-
-# Calculate the distribution of 'ED_LOS'
-ed_los_distribution = visits['ED_LOS'].describe()
-print("\nED_LOS Distribution:\n", ed_los_distribution)
-
-# You can also visualize the distributions using histograms
-plt.figure(figsize=(12, 6))
-
-plt.subplot(1, 2, 1)
-plt.hist(visits['Age'], bins=20)
-plt.xlabel('Age')
-plt.ylabel('Frequency')
-plt.title('Distribution of Age')
-
-plt.subplot(1, 2, 2)
-plt.hist(visits['ED_LOS'], bins=20)
-plt.xlabel('ED_LOS')
-plt.ylabel('Frequency')
-plt.title('Distribution of ED_LOS')
-
-plt.tight_layout()
-plt.show()
-
-print(visits.Outcome.value_counts())
