@@ -4,6 +4,8 @@ This repository contains the official implementation of a spatio-temporal graph 
 
 ## Repository Structure
 
+We suggest loading this into a colab notebook or cloud API to run
+
 - `data_preprocessing.py`: Processes the MC-MED dataset into time-series, static, ICD code, and radiographic embeddings.
 - `train_graphsurv_mcmed.py`: Trains the model on the processed MC-MED dataset.
 
