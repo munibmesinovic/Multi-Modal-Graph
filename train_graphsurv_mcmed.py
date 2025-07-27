@@ -1,30 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
-# !pip install pycox
-# !pip install scipy==1.13.0
-get_ipython().system('pip install torchtuples')
-
-
-# In[ ]:
-
-
-from google.colab import drive
-drive.mount('/content/gdrive')
-
-
-# In[ ]:
-
-
-cd 'gdrive/MyDrive/MC-MED'
-
-
-# In[ ]:
-
-
 import numpy as np
 import numba
 import argparse
@@ -84,15 +57,9 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # DEVICE = torch.device("cpu")
 
 
-# In[ ]:
-
-
 from pycox.models import DeepHit
 from pycox.evaluation import EvalSurv
 from pycox.models import utils
-
-
-# In[ ]:
 
 
 durations_test = np.load('durations_test_MCMED.npy')
@@ -110,28 +77,6 @@ with open('y_val_surv_MCMED.p', 'rb') as file:
     y_val_surv = pickle.load(file)
 
 
-# In[ ]:
-
-
-np.isnan(x_train).any()
-
-
-# In[ ]:
-
-
-x_train.shape, x_val.shape, x_test.shape
-
-
-# In[ ]:
-
-
-# has to be float32 because of weight multiplications
-x_train.dtype
-
-
-# In[ ]:
-
-
 train = tt.tuplefy(x_train, (y_train_surv, x_train))
 val = (x_val, y_val_surv)
 
@@ -139,11 +84,6 @@ val = (x_val, y_val_surv)
 num_nodes = x_val.shape[2]
 seq_length = x_val.shape[1]
 
-
-# In[ ]:
-
-
-# %% [code]
 class multi_shallow_embedding(nn.Module):
 
     def __init__(self, num_nodes, k_neighs, num_graphs):
@@ -401,7 +341,6 @@ class DenseGINConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, groups=1, eps=0, train_eps=True):
         super().__init__()
 
-        # TODO: Multi-layer model
         self.mlp = Group_Linear(in_channels, out_channels, groups, bias=False)
 
         # Encoder part
@@ -410,7 +349,6 @@ class DenseGINConv2d(nn.Module):
 
         # Decoder part (similar to the original DenseGINConv2d)
         self.mlp = Group_Linear(out_channels, in_channels, groups, bias=False)  # Adjust output channels
-
 
         self.init_eps = eps
         if train_eps:
@@ -476,12 +414,7 @@ class DenseGINConv2d(nn.Module):
         C = out.size(1)
         out2 = out.transpose(2, 3).reshape(B, C, N, -1)
 
-        # # Variational encoding
-        # mean = self.mlp(x,True)
-        # logvar = self.mlp(x,True)
-
-
-        return out2 #, logvar, mean
+        return out2
 
 class Dense_TimeDiffPool2d(nn.Module):
 
@@ -511,7 +444,6 @@ class Dense_TimeDiffPool2d(nn.Module):
         # s: [ N^(l+1), N^l, 1, K ]
         s = torch.matmul(self.time_conv.weight, self.re_param).view(out.size(-2), -1)
 
-        # TODO: fully-connect, how to decrease time complexity
         out_adj = torch.matmul(torch.matmul(s, adj), s.transpose(0, 1))
 
         return out, out_adj
@@ -558,9 +490,6 @@ class DiffPoolLayer(nn.Module):
         return pooled_x, pooled_adj
 
 class GNNStack(nn.Module):
-    """ The stack layers of GNN.
-
-    """
 
     def __init__(self, num_risks, gnn_model_type, num_layers, groups, pool_ratio, kern_size,
                  in_dim, hidden_dim, out_dim,
@@ -572,7 +501,6 @@ class GNNStack(nn.Module):
 
         self.attention_matrix = nn.Parameter(torch.randn(groups, num_nodes_total, num_nodes_total))
         nn.init.xavier_uniform_(self.attention_matrix)
-        #******************************************************************************
 
         # Hierarchical Attention Matrices for Each Modality
         self.att_dynamic = nn.Parameter(torch.randn(groups, num_nodes_dynamic, num_nodes_dynamic))
@@ -590,7 +518,6 @@ class GNNStack(nn.Module):
         self.att_top_level = nn.Parameter(torch.randn(groups, num_nodes_total, num_nodes_total))
         nn.init.xavier_uniform_(self.att_top_level)
 
-        # TODO: Sparsity Analysis
         k_neighs = self.num_nodes_dynamic = num_nodes_dynamic
 
         self.num_graphs = groups
@@ -711,7 +638,7 @@ class GNNStack(nn.Module):
         pooled_adj_reports = pooled_adj_reports[0, :, :]
         pooled_adj_reports = pooled_adj_reports.repeat(6, 1, 1)
 
-        # Apply **modality-specific attention** separately
+        # Apply modality-specific attention separately
         att_dynamic = self.softmax(self.att_dynamic)
         att_static = self.softmax(self.att_static)
         att_icd = self.softmax(self.att_icd)
@@ -745,12 +672,10 @@ class GNNStack(nn.Module):
         # Concatenate with pooled_x along the second dimension (feature axis)
         x = torch.cat((x_preserved, pooled_x, pooled_x_reports), dim=2)  # Shape: [128, 1, 161, 24]
 
-        #*******************************************************************
         # Attention layer
         attention_scores = F.softmax(self.attention_matrix, dim=-1)
 
         adj = adj * attention_scores
-        #*******************************************************************
 
         for gconv, bn, pool in zip(self.gconvs, self.bns, self.diffpool):
             # print(x.shape) torch.Size([32, 1, 80, 24])
@@ -836,7 +761,7 @@ class GNNStack(nn.Module):
         pooled_adj = pooled_adj * att_icd
         pooled_adj_reports = pooled_adj_reports * att_reports
 
-        # Initialize combined adjacency matrix (shape: [6, 111, 111])
+        # Initialise combined adjacency matrix (shape: [6, 111, 111])
         adj = torch.zeros(6, 161, 161)
 
         # Fill the top-left block with the static adjacency matrix
@@ -859,12 +784,10 @@ class GNNStack(nn.Module):
         # Concatenate with pooled_x along the second dimension (feature axis)
         x = torch.cat((x_preserved, pooled_x, pooled_x_reports), dim=2)  # Shape: [128, 1, 161, 24]
 
-        #*******************************************************************
         # Attention layer
         attention_scores = F.softmax(self.attention_matrix, dim=-1)
 
         adj = adj * attention_scores
-        #*******************************************************************
 
         for gconv, bn, pool in zip(self.gconvs, self.bns, self.diffpool):
             # print(x.shape) torch.Size([32, 1, 80, 24])
@@ -898,10 +821,6 @@ class GNNStack(nn.Module):
 
         return out
 
-
-# In[ ]:
-
-
 def pad_col(input, val=0, where='end'):
     """Addes a column of `val` at the start of end of `input`."""
     if len(input.shape) != 2:
@@ -920,15 +839,6 @@ def array_or_tensor(tensor, numpy, input):
     return tt.utils.array_or_tensor(tensor, numpy, input)
 
 def make_subgrid(grid, sub=1):
-    """When calling `predict_surv` with sub != 1 this can help with
-    creating the duration index of the survival estimates.
-
-    E.g.
-    sub = 5
-    surv = model.predict_surv(test_input, sub=sub)
-    grid = model.make_subgrid(cuts, sub)
-    surv = pd.DataFrame(surv, index=grid)
-    """
     subgrid = tt.TupleTree(np.linspace(start, end, num=sub+1)[:-1]
                         for start, end in zip(grid[:-1], grid[1:]))
     subgrid = subgrid.apply(lambda x: tt.TupleTree(x)).flatten() + (grid[-1],)
@@ -937,15 +847,6 @@ def make_subgrid(grid, sub=1):
 def log_softplus(input, threshold=-15.):
     """Equivalent to 'F.softplus(input).log()', but for 'input < threshold',
     we return 'input', as this is approximately the same.
-
-    Arguments:
-        input {torch.tensor} -- Input tensor
-
-    Keyword Arguments:
-        threshold {float} -- Treshold for when to just return input (default: {-15.})
-
-    Returns:
-        torch.tensor -- return log(softplus(input)).
     """
     output = input.clone()
     above = input >= threshold
@@ -958,32 +859,22 @@ def cumsum_reverse(input: torch.Tensor, dim: int = 1) -> torch.Tensor:
     input = input.sum(1, keepdim=True) - pad_col(input, where='start').cumsum(1)
     return input[:, :-1]
 
-
-# In[ ]:
-
-
 class _Loss(torch.nn.Module):
     def __init__(self, reduction: str = 'mean') -> None:
         super().__init__()
         self.reduction = reduction
 
-def _reduction(loss: Tensor, reduction: str = 'mean') -> Tensor:
+def _reduction(Loss: Tensor, reduction: str = 'mean') -> Tensor:
     if reduction == 'none':
-        return loss
+        return Loss
     elif reduction == 'mean':
-        return loss.mean()
+        return Loss.mean()
     elif reduction == 'sum':
-        return loss.sum()
+        return Loss.sum()
     raise ValueError(f"`reduction` = {reduction} is not valid. Use 'none', 'mean' or 'sum'.")
 
 def nll_logistic_hazard(phi: Tensor, idx_durations: Tensor, events: Tensor,
                         reduction: str = 'mean') -> Tensor:
-    """
-    References:
-    [1] Håvard Kvamme and Ørnulf Borgan. Continuous and Discrete-Time Survival Prediction
-        with Neural Networks. arXiv preprint arXiv:1910.06724, 2019.
-        https://arxiv.org/pdf/1910.06724.pdf
-    """
     if phi.shape[1] <= idx_durations.max():
         raise ValueError(f"Network output `phi` is too small for `idx_durations`."+
                          f" Need at least `phi.shape[1] = {idx_durations.max().item()+1}`,"+
@@ -996,28 +887,12 @@ def nll_logistic_hazard(phi: Tensor, idx_durations: Tensor, events: Tensor,
     idx_durations = idx_durations.view(-1, 1)
     y_bce = torch.zeros_like(phi).scatter(1, idx_durations, events)
     bce = F.binary_cross_entropy_with_logits(phi, y_bce, reduction='none')
-    loss = bce.cumsum(1).gather(1, idx_durations).view(-1)
-    return _reduction(loss, reduction)
+    Loss = bce.cumsum(1).gather(1, idx_durations).view(-1)
+    return _reduction(Loss, reduction)
 
 def nll_pmf_cr(phi: Tensor, idx_durations: Tensor, events: Tensor, reduction: str = 'mean',
                epsilon: float = 1e-7) -> Tensor:
     """Negative log-likelihood for PMF parameterizations. `phi` is the ''logit''.
-
-    Arguments:
-        phi {torch.tensor} -- Predictions as float tensor with shape [batch, n_risks, n_durations]
-            all in (-inf, inf).
-        idx_durations {torch.tensor} -- Int tensor with index of durations.
-        events {torch.tensor} -- Int tensor with event types.
-            {0: Censored, 1: first group, ..., n_risks: n'th risk group}.
-
-    Keyword Arguments:
-        reduction {string} -- How to reduce the loss.
-            'none': No reduction.
-            'mean': Mean of tensor.
-            else: sum.
-
-    Returns:
-        torch.tensor -- Negative log-likelihood.
     """
     # Should improve numerical stability by, e.g., log-sum-exp trick.
     # if events.dtype is torch.bool:
@@ -1033,20 +908,12 @@ def nll_pmf_cr(phi: Tensor, idx_durations: Tensor, events: Tensor, reduction: st
     index = torch.arange(batch_size)
     part1 = sm[index, events, idx_durations].relu().add(epsilon).log().mul(event_01)
     part2 = (1 - sm.cumsum(2)[index, :, idx_durations].sum(1)).relu().add(epsilon).log().mul(1 - event_01)
-    loss = - part1.add(part2)
-    return _reduction(loss, reduction)
+    Loss = - part1.add(part2)
+    return _reduction(Loss, reduction)
 
 def _diff_cdf_at_time_i(pmf: Tensor, y: Tensor) -> Tensor:
-    """R is the matrix from the DeepHit code giving the difference in CDF between individual
+    """R is the matrix giving the difference in CDF between individual
     i and j, at the event time of j.
-    I.e: R_ij = F_i(T_i) - F_j(T_i)
-
-    Arguments:
-        pmf {torch.tensor} -- Matrix with probability mass function pmf_ij = f_i(t_j)
-        y {torch.tensor} -- Matrix with indicator of duration/censor time.
-
-    Returns:
-        torch.tensor -- R_ij = F_i(T_i) - F_j(T_i)
     """
     n = pmf.shape[0]
     ones = torch.ones((n, 1), device=pmf.device)
@@ -1055,52 +922,15 @@ def _diff_cdf_at_time_i(pmf: Tensor, y: Tensor) -> Tensor:
     r = ones.matmul(diag_r) - r
     return r.transpose(0, 1)
 
-def _rank_loss_deephit(pmf: Tensor, y: Tensor, rank_mat: Tensor, sigma: float,
+def rank_Loss(pmf: Tensor, y: Tensor, rank_mat: Tensor, sigma: float,
                        reduction: str = 'mean') -> Tensor:
-    """Ranking loss from DeepHit.
-
-    Arguments:
-        pmf {torch.tensor} -- Matrix with probability mass function pmf_ij = f_i(t_j)
-        y {torch.tensor} -- Matrix with indicator of duration and censoring time.
-        rank_mat {torch.tensor} -- See pair_rank_mat function.
-        sigma {float} -- Sigma from DeepHit paper, chosen by you.
-
-    Returns:
-        torch.tensor -- loss
-    """
     r = _diff_cdf_at_time_i(pmf, y)
-    loss = rank_mat * torch.exp(-r/sigma)
-    loss = loss.mean(1, keepdim=True)
-    return _reduction(loss, reduction)
+    Loss = rank_mat * torch.exp(-r/sigma)
+    Loss = Loss.mean(1, keepdim=True)
+    return _reduction(Loss, reduction)
 
-def rank_loss_deephit_cr(phi: Tensor, idx_durations: Tensor, events: Tensor, rank_mat: Tensor,
+def rank_Loss_cr(phi: Tensor, idx_durations: Tensor, events: Tensor, rank_mat: Tensor,
                          sigma: float, reduction: str = 'mean') -> Tensor:
-    """Rank loss proposed by DeepHit authors for competing risks [1].
-
-    Arguments:
-        phi {torch.tensor} -- Predictions as float tensor with shape [batch, n_risks, n_durations]
-            all in (-inf, inf).
-        idx_durations {torch.tensor} -- Int tensor with index of durations.
-        events {torch.tensor} -- Int tensor with event types.
-            {0: Censored, 1: first group, ..., n_risks: n'th risk group}.
-        rank_mat {torch.tensor} -- See pair_rank_mat function.
-        sigma {float} -- Sigma from DeepHit paper, chosen by you.
-
-    Keyword Arguments:
-        reduction {string} -- How to reduce the loss.
-            'none': No reduction.
-            'mean': Mean of tensor.
-            else: sum.
-
-    Returns:
-        torch.tensor -- Rank loss.
-
-    References:
-    [1] Changhee Lee, William R Zame, Jinsung Yoon, and Mihaela van der Schaar. Deephit: A deep learning
-        approach to survival analysis with competing risks. In Thirty-Second AAAI Conference on Artificial
-        Intelligence, 2018.
-        http://medianetlab.ee.ucla.edu/papers/AAAI_2018_DeepHit
-    """
     if events.dtype is torch.bool:
         events = events.float()
     phi = phi.float()
@@ -1116,35 +946,24 @@ def rank_loss_deephit_cr(phi: Tensor, idx_durations: Tensor, events: Tensor, ran
     y = torch.zeros_like(pmf)
     y[torch.arange(batch_size), :, idx_durations] = 1.
 
-    loss = []
+    Loss = []
     for i in range(n_risks):
-        rank_loss_i = _rank_loss_deephit(pmf[:, i, :], y[:, i, :], rank_mat, sigma, 'none')
-        loss.append(rank_loss_i.view(-1) * (events == i).float())
+        rank_Loss_i = rank_Loss(pmf[:, i, :], y[:, i, :], rank_mat, sigma, 'none')
+        Loss.append(rank_Loss_i.view(-1) * (events == i).float())
 
     if reduction == 'none':
-        return sum(loss)
+        return sum(Loss)
     elif reduction == 'mean':
-        return sum([lo.mean() for lo in loss])
+        return sum([lo.mean() for lo in Loss])
     elif reduction == 'sum':
-        return sum([lo.sum() for lo in loss])
-    return _reduction(loss, reduction)
+        return sum([lo.sum() for lo in Loss])
+    return _reduction(Loss, reduction)
 
 class NLLLogistiHazardLoss(_Loss):
     def forward(self, phi: Tensor, idx_durations: Tensor, events: Tensor) -> Tensor:
         return nll_logistic_hazard(phi, idx_durations, events, self.reduction)
 
-class _DeepHitLoss(_Loss):
-    """Loss for DeepHit model.
-    If you have only one event type, use LossDeepHitSingle instead!
-
-    Alpha is  weighting between likelihood and rank loss (so not like in paper):
-
-    loss = alpha * nll + (1 - alpha) rank_loss(sigma)
-
-    Arguments:
-        alpha {float} -- Weighting between likelihood and rank loss.
-        sigma {float} -- Part of rank loss (see DeepHit paper)
-    """
+class _Loss(_Loss):
     def __init__(self, alpha: float, sigma: float, reduction: str = 'mean') -> None:
         super().__init__(reduction)
         self.alpha = alpha
@@ -1170,28 +989,11 @@ class _DeepHitLoss(_Loss):
             raise ValueError(f"Need `sigma` to be positive. Got {sigma}.")
         self._sigma = sigma
 
-class DeepHitLoss(_DeepHitLoss):
-    """Loss for DeepHit model [1].
-    If you have only one event type, use LossDeepHitSingle instead!
-
-    Alpha is  weighting between likelihood and rank loss (so not like in paper):
-
-    loss = alpha * nll + (1 - alpha) rank_loss(sigma)
-
-    Arguments:
-        alpha {float} -- Weighting between likelihood and rank loss.
-        sigma {float} -- Part of rank loss (see DeepHit paper)
-
-    References:
-    [1] Changhee Lee, William R Zame, Jinsung Yoon, and Mihaela van der Schaar. Deephit: A deep learning
-        approach to survival analysis with competing risks. In Thirty-Second AAAI Conference on Artificial
-        Intelligence, 2018.
-        http://medianetlab.ee.ucla.edu/papers/AAAI_2018_DeepHit
-    """
+class Loss(_Loss):
     def forward(self, phi: Tensor, idx_durations: Tensor, events: Tensor, rank_mat: Tensor) -> Tensor:
         nll =  nll_pmf_cr(phi, idx_durations, events, self.reduction)
-        rank_loss = rank_loss_deephit_cr(phi, idx_durations, events, rank_mat, self.sigma, self.reduction)
-        return self.alpha * nll + (1. - self.alpha) * rank_loss
+        rank_Loss = rank_Loss_cr(phi, idx_durations, events, rank_mat, self.sigma, self.reduction)
+        return self.alpha * nll + (1. - self.alpha) * rank_Loss
 
 def _pair_rank_mat(mat, idx_durations, events, dtype='float32'):
     n = len(idx_durations)
@@ -1208,19 +1010,6 @@ def _pair_rank_mat(mat, idx_durations, events, dtype='float32'):
     return mat
 
 def pair_rank_mat(idx_durations, events, dtype='float32'):
-    """Indicator matrix R with R_ij = 1{T_i < T_j and D_i = 1}.
-    So it takes value 1 if we observe that i has an event before j and zero otherwise.
-
-    Arguments:
-        idx_durations {np.array} -- Array with durations.
-        events {np.array} -- Array with event indicators.
-
-    Keyword Arguments:
-        dtype {str} -- dtype of array (default: {'float32'})
-
-    Returns:
-        np.array -- n x n matrix indicating if i has an observed event before j.
-    """
     idx_durations = idx_durations.reshape(-1)
     events = events.reshape(-1)
     n = len(idx_durations)
@@ -1232,19 +1021,14 @@ class Loss(nn.Module):
     def __init__(self, alpha: list, sigma: float = 0.1):
         super().__init__()
         self.alpha = alpha
-        # self.loss_surv = NLLLogistiHazardLoss()
-        self.loss_surv = DeepHitLoss(alpha=alpha[0], sigma=sigma)
+        # self.Loss_surv = NLLLogistiHazardLoss()
+        self.Loss_surv = Loss(alpha=alpha[0], sigma=sigma)
 
     def forward(self, phi, attention, att_dynamic, att_static, pooled_adj, pooled_adj_reports, idx_durations, events, rank_mat):
         rank_mat = pair_rank_mat(idx_durations.cpu().numpy(), events.cpu().numpy())
         rank_mat = torch.tensor(rank_mat, dtype=phi.dtype, device=phi.device)
-        loss_surv = self.loss_surv(phi, idx_durations, events, rank_mat)
-        # loss_kd = (-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()))/1000000
-        return loss_surv
-
-
-# In[ ]:
-
+        Loss_surv = self.Loss_surv(phi, idx_durations, events, rank_mat)
+        return Loss_surv
 
 class Dataset(tt.data.DatasetTuple):
     def __getitem__(self, index):
@@ -1254,16 +1038,12 @@ class Dataset(tt.data.DatasetTuple):
         target = tt.tuplefy(*target, rank_mat).to_tensor()
         return tt.tuplefy(input, target)
 
-
-# In[ ]:
-
-
 class Survival_Model(tt.Model):
-    def __init__(self, net, optimizer=None, device=None, alpha=0.2, sigma=0.1, duration_index=None, loss=None):
+    def __init__(self, net, optimizer=None, device=None, alpha=0.2, sigma=0.1, duration_index=None, Loss=None):
         self.duration_index = duration_index
-        if loss is None:
-            loss = models.loss.DeepHitLoss(alpha, sigma)
-        super().__init__(net, loss, optimizer, device)
+        if Loss is None:
+            Loss = models.Loss.Loss(alpha, sigma)
+        super().__init__(net, Loss, optimizer, device)
 
     @property
     def duration_index(self):
@@ -1305,15 +1085,7 @@ class Survival_Model(tt.Model):
         pmf = pmf.view(preds.shape).transpose(0, 1).transpose(1, 2)
         return tt.utils.array_or_tensor(pmf, numpy, input)
 
-
-# In[ ]:
-
-
-loss = Loss(alpha=[0.2], sigma=0.1)
-
-
-# In[ ]:
-
+Loss = Loss(alpha=[0.2], sigma=0.1)
 
 # Extract time-to-event and event label
 num_durations = 10
@@ -1333,52 +1105,24 @@ net = net.cuda(DEVICE)
 # gc.collect()
 # torch.cuda.empty_cache()
 
-model = Survival_Model(net, tt.optim.Adam(0.0001), duration_index=cuts, loss=loss) # wrapper
-
-
-# In[ ]:
-
+model = Survival_Model(net, tt.optim.Adam(0.0001), duration_index=cuts, Loss=Loss) # wrapper
 
 metrics = dict(
-    loss_surv = Loss(alpha=[0.2], sigma=0.1),
+    Loss_surv = Loss(alpha=[0.2], sigma=0.1),
 )
 callbacks = [tt.cb.EarlyStopping()]
-
-
-# In[ ]:
-
 
 batch_size = 32
 epochs = 10
 log = model.fit(x_train, y_train_surv, batch_size = batch_size, epochs = epochs, callbacks = callbacks, verbose = True, val_data=val, val_batch_size=32, metrics=metrics)
 
-
-# In[ ]:
-
-
 res = model.log.to_pandas()
-
-
-# In[ ]:
-
 
 res.head()
 
+_ = res[['train_Loss', 'val_Loss']].plot()
 
-# In[ ]:
-
-
-_ = res[['train_loss', 'val_loss']].plot()
-
-
-# In[ ]:
-
-
-_ = res[['train_loss_surv', 'val_loss_surv']].plot()
-
-
-# In[ ]:
-
+_ = res[['train_Loss_surv', 'val_Loss_surv']].plot()
 
 def idx_at_times(index_surv, times, steps='pre', assert_sorted=True):
     if assert_sorted:
@@ -1823,110 +1567,23 @@ class EvalSurv:
         return -ibll
 
 
-# In[ ]:
-
-
-surv = model.predict_surv_df(x_test[:50])
-ev = EvalSurv(surv, durations_test[:50], events_test[:50] != 0, censor_surv='km')
-
-
-# In[ ]:
-
-
-ev.concordance_td()
-
-
-# In[ ]:
-
-
-time_grid = np.linspace(0, durations_test[:50].max(), 50)
-integrated_brier_score = ev.integrated_brier_score(time_grid)
-
-
-# In[ ]:
-
-
-integrated_brier_score
-
-
-# In[ ]:
-
-
-ev.integrated_nbll(np.linspace(0, durations_test[:50].max(), 50))
-
-
-# In[ ]:
-
-
-cif = model.predict_cif(x_test[:50])
+cif = model.predict_cif(x_test)
 cif1 = pd.DataFrame(cif[0], model.duration_index)
 cif2 = pd.DataFrame(cif[1], model.duration_index)
 cif3 = pd.DataFrame(cif[2], model.duration_index)
 cif4 = pd.DataFrame(cif[3], model.duration_index)
 
 
-# In[ ]:
-
-
-ev1 = EvalSurv(1-cif1, durations_test[:50], events_test[:50] == 0, censor_surv='km')
-ev2 = EvalSurv(1-cif2, durations_test[:50], events_test[:50] == 1, censor_surv='km')
-ev3 = EvalSurv(1-cif3, durations_test[:50], events_test[:50] == 2, censor_surv='km')
-ev4 = EvalSurv(1-cif4, durations_test[:50], events_test[:50] == 3, censor_surv='km')
-
-
-# In[ ]:
-
+ev1 = EvalSurv(1-cif1, durations_test, events_test == 0, censor_surv='km')
+ev2 = EvalSurv(1-cif2, durations_test, events_test == 1, censor_surv='km')
+ev3 = EvalSurv(1-cif3, durations_test, events_test == 2, censor_surv='km')
+ev4 = EvalSurv(1-cif4, durations_test, events_test == 3, censor_surv='km')
 
 ev1.concordance_td(), ev2.concordance_td(), ev3.concordance_td(), ev4.concordance_td()
-
-
-# In[ ]:
-
 
 last_row_values = cif2.iloc[-1]
 column_with_lowest_last_row = last_row_values.idxmin()
 print(f"The column with the lowest last row value in cif1 is: {column_with_lowest_last_row}")
-
-
-# In[ ]:
-
-
-indices = np.arange(35, 41)  # Generate indices corresponding to the slice range
-sample = np.random.choice(indices, 6, replace=False)  # Sample from these indices
-fig, axs = plt.subplots(2, 3, figsize=(10, 5))
-fig.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.95, wspace=0.3, hspace=0.4)
-for ax, idx in zip(axs.flat, sample):
-    pd.DataFrame(cif.transpose()[idx], index=cuts).plot(ax=ax)
-    ax.set_ylabel('CIF')
-    ax.set_xlabel('Time')
-    ax.grid(linestyle='--')
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
 
 
 
