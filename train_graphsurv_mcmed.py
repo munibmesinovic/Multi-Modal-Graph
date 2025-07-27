@@ -38,17 +38,6 @@ from torch.nn.parameter import Parameter
 
 from torch.utils.data import TensorDataset
 
-from fastai.metrics import *
-from fastai.basics import *
-from fastai.imports import *
-from fastai.torch_core import *
-from fastcore.basics import *
-from fastcore.dispatch import *
-from fastcore.foundation import *
-from fastcore.imports import *
-from fastcore.meta import *
-from fastcore.test import *
-
 random.seed(42)
 np.random.seed(42)
 torch.manual_seed(42)
