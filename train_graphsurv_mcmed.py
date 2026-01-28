@@ -67,7 +67,9 @@ with open('y_train_surv_MCMED.p', 'rb') as file:
 
 with open('y_val_surv_MCMED.p', 'rb') as file:
     y_val_surv = pickle.load(file)
-
+    
+# Load precomputed ICD adjacency matrix (cosine similarity from Word2Vec)
+icd_adjacency_pretrained = torch.tensor(np.load('icd_adjacency.npy'), dtype=torch.float32)
 
 train = tt.tuplefy(x_train, (y_train_surv, x_train))
 val = (x_val, y_val_surv)
