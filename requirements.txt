@@ -7,3 +7,8 @@ seaborn
 transformers
 tqdm
 networkx
+gensim
+scipy
+pycox
+torchtuples
+numba
