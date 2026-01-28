@@ -567,6 +567,11 @@ class GNNStack(nn.Module):
         )
 
         self.icdpool = DiffPoolLayer(num_icd_codes, 50, num_icd_codes, hidden_dim)
+        # Register pretrained ICD adjacency
+        self.register_buffer('icd_adj_pretrained', None)
+    
+        def set_icd_adjacency(self, adj):
+            self.icd_adj_pretrained = adj
         self.reportspool = DiffPoolLayer(num_reports_features, 50, num_reports_features, hidden_dim)
 
         self.num_layers = num_layers
@@ -628,8 +633,8 @@ class GNNStack(nn.Module):
 
         adj_static = adj_static.repeat(6, 1, 1)
 
-        # Apply ICDPool
-        pooled_x, pooled_adj = self.icdpool(icd_features, adj_icd)
+        # Apply ICDPool with cosine similarity adjacency
+        pooled_x, pooled_adj = self.icdpool(icd_features, self.icd_adj_pretrained)
 
         pooled_x = pooled_x.repeat(1, 1, 24)
         pooled_x = pooled_x[:, None, :, :]
@@ -638,7 +643,17 @@ class GNNStack(nn.Module):
         pooled_adj = pooled_adj.repeat(6, 1, 1)
 
         # Apply pool for Reports
-        pooled_x_reports, pooled_adj_reports = self.reportspool(report_features, adj_reports)
+        # Compute Gaussian similarity adjacency for reports
+        report_flat = report_features.squeeze(1)  # [B, 768]
+        # For pooling, we need node-level features; here 768 dims are treated as nodes
+        # Gaussian kernel: exp(-||x_i - x_j||^2 / tau)
+        tau = 2.0
+        report_norm = report_flat / (report_flat.norm(dim=0, keepdim=True) + 1e-8)
+        adj_reports_gaussian = torch.exp(-torch.cdist(report_norm.T, report_norm.T).pow(2) / tau)
+        adj_reports_gaussian = adj_reports_gaussian.unsqueeze(0)  # [1, 768, 768]
+        
+        # Apply pool for Reports
+        pooled_x_reports, pooled_adj_reports = self.reportspool(report_features, adj_reports_gaussian)
 
         pooled_x_reports = pooled_x_reports.repeat(1, 1, 24)
         pooled_x_reports = pooled_x_reports[:, None, :, :]
