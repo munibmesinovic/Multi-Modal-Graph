@@ -116,12 +116,16 @@ class multi_shallow_embedding(nn.Module):
         return adj
 
 class multi_shallow_embedding_with_static(nn.Module):
-    def __init__(self, num_nodes, k_neighs, num_graphs, num_static_nodes, num_icd_codes, num_reports_features):
+    def __init__(self, num_nodes, k_neighs, num_graphs, num_static_nodes, num_icd_codes, num_reports_features, alpha_ema=0.7):
         super().__init__()
 
         self.num_nodes = num_nodes  # Number of nodes for dynamic features
         self.k = k_neighs  # Top-k edges for dynamic adjacency
         self.num_graphs = num_graphs  # Number of graphs (groups)
+        self.alpha_ema = alpha_ema  # EMA smoothing parameter
+        
+        # Register buffer for EMA state
+        self.register_buffer('adj_dynamic_ema', None)
         self.num_static_nodes = num_static_nodes  # Number of nodes for static features
         self.num_icd_codes = num_icd_codes  # Number of ICD codes
         self.num_reports_features = num_reports_features  # Number of reports features
@@ -163,8 +167,18 @@ class multi_shallow_embedding_with_static(nn.Module):
 
     def forward(self, device):
 
-        # Dynamic adjacency matrix
-        adj_dynamic = torch.matmul(self.emb_s_dynamic, self.emb_t_dynamic).to(device)
+        # Dynamic adjacency matrix (raw)
+        adj_dynamic_raw = torch.matmul(self.emb_s_dynamic, self.emb_t_dynamic).to(device)
+        
+        # Apply EMA smoothing
+        if self.adj_dynamic_ema is None:
+            self.adj_dynamic_ema = adj_dynamic_raw.detach().clone()
+        else:
+            self.adj_dynamic_ema = (
+                self.alpha_ema * self.adj_dynamic_ema + 
+                (1 - self.alpha_ema) * adj_dynamic_raw.detach()
+            )
+        adj_dynamic = self.alpha_ema * self.adj_dynamic_ema + (1 - self.alpha_ema) * adj_dynamic_raw
 
         # Static adjacency matrix
         adj_static = torch.matmul(self.emb_s_static, self.emb_t_static).to(device)
