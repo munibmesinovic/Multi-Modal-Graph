@@ -1,0 +1,64 @@
+dataset:
+  name: eicu
+  num_risks: 1
+  num_modalities: 2
+  modalities: [static, dynamic]
+  risk_names: [mortality]
+
+data:
+  raw_dir: data/eicu/raw
+  processed_dir: data/eicu/processed
+  cache_dir: data/eicu/cache
+  golden_reference_dir: data/eicu/golden_reference
+  splits: {train: 0.7, val: 0.1, test: 0.2}
+  seed: 42
+
+  n_hours: 24
+  n_blocks: 6
+  hours_per_block: 4
+
+  min_los_hours: 24
+  missing_thresh: 0.75
+  ffill_window_hours: 24
+  exclude_age_over: 89
+
+  num_durations: 10
+  bin_strategy: quantile
+
+label_transform:
+  source_col: unitdischargeoffset
+  event_col: unitdischargestatus_Expired
+
+model:
+  num_modalities: 2
+  modality_dims:
+    static: 62
+    dynamic: 31
+  pool_dims: {}
+  k_neighbors: 5
+  alpha_ema: 0.5
+  gin_dims: [64, 32]
+  num_durations: 10
+  dropout: 0.5
+  use_temporal_edges: true
+  cause_specific_proj: false
+  cause_specific_gin: false
+  per_cause_hazard: true
+
+loss:
+  alpha_nll: 1.0
+  beta_rank: 0.1
+  lambda_reg: 0.1
+  rank_sigma: 0.5
+  cif_smooth_weight: 0.1
+
+training:
+  batch_size: 128
+  max_epochs: 100
+  patience: 12
+  lr: 1.0e-4
+  weight_decay: 1.0e-3
+  clip_norm: 1.0
+  scheduler: plateau
+  lr_patience: 5
+  num_workers: 2

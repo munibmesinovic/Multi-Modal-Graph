@@ -1,0 +1,84 @@
+dataset:
+  name: mimic
+  num_risks: 1
+  num_modalities: 4
+  modalities: [dynamic, static, rad, icd]
+  risk_names: [mortality]
+
+data:
+  raw_dir: /content/drive/MyDrive/MIMIC IV
+  processed_dir: data/mimic/processed
+  cache_dir: data/mimic/cache
+  golden_reference_dir: data/mimic/golden_reference
+
+  splits: {train: 0.8, val: 0.1, test: 0.1}
+  seed: 42
+
+  n_hours: 24
+  n_blocks: 6
+  hours_per_block: 4
+
+  min_los_hours: 24
+  missing_thresh: 0.75
+  ffill_window_hours: 24
+
+  vital_itemids:
+    220045: heart_rate
+    220179: nibp_systolic
+    220180: nibp_diastolic
+    220181: nibp_mean
+    220210: respiratory_rate
+    220277: spo2
+    223761: temperature_f
+    223762: temperature_c
+    220074: cvp
+    220235: cuff_pressure
+
+  num_durations: 10
+  bin_strategy: quantile
+
+label_transform:
+  source_col: los_hours
+  event_col: icu_mortality
+
+model:
+  num_modalities: 4
+  modality_dims:
+    dynamic: 35
+    static: 36
+  raw_modality_dims:
+    rad: 768
+    icd: 500
+  pool_dims:
+    icd: 50
+    rad: 50
+  top_icd_codes: 500
+  longformer_model: yikuan8/Clinical-Longformer
+  longformer_max_length: 4096
+  k_neighbors: 5
+  alpha_ema: 0.5
+  gin_dims: [128, 64, 32]
+  num_durations: 10
+  dropout: 0.3
+  use_temporal_edges: true
+  cause_specific_proj: false
+  cause_specific_gin: false
+  per_cause_hazard: true
+
+loss:
+  alpha_nll: 1.0
+  beta_rank: 0.1
+  lambda_reg: 0.1
+  rank_sigma: 0.5
+  cif_smooth_weight: 0.5
+
+training:
+  batch_size: 64
+  max_epochs: 100
+  patience: 15
+  lr: 5.0e-5
+  weight_decay: 1.0e-5
+  clip_norm: 1.0
+  scheduler: plateau
+  lr_patience: 5
+  num_workers: 2

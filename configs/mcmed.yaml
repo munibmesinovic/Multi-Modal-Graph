@@ -1,0 +1,92 @@
+dataset:
+  name: mcmed
+  num_risks: 2
+  num_modalities: 4
+  modalities: [dynamic, static, rad, icd]
+  risk_names: [icu_admission, inpatient_care]
+  # Raw ED dispositions in the cohort: 0=censor, 1=ICU, 2=Hospital, 3=Observation.
+  # Hospital + Observation are collapsed to a single "inpatient_care" risk at
+  # load time (see scripts/train_mmg.py). The preprocessed tensors carry the
+  # raw 4-way code; the collapse is in-memory and deterministic.
+  event_collapse: {3: 2}
+
+data:
+  raw_dir: /content/drive/MyDrive/MC-MED
+  processed_dir: data/mcmed/processed
+  cache_dir: data/mcmed/cache
+  golden_reference_dir: data/mcmed/golden_reference
+
+  splits: {train: 0.8, val: 0.1, test: 0.1}
+  seed: 42
+
+  n_hours: 6
+  n_blocks: 6
+  hours_per_block: 1
+
+  min_los_hours: 0.5
+  missing_thresh: 0.75
+  ffill_window_hours: 6
+  required_columns:
+    - Race
+    - Ethnicity
+    - Triage_Temp
+    - Triage_HR
+    - Triage_RR
+    - Triage_SpO2
+    - Triage_SBP
+    - Triage_DBP
+    - Triage_acuity
+    - ED_LOS
+    - ED_dispo
+
+  num_durations: 10
+  bin_strategy: custom_mcmed
+  cuts_hours: [0.0, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+
+label_transform:
+  source_col: ED_LOS
+  event_col: ED_dispo
+
+model:
+  num_modalities: 4
+  modality_dims:
+    dynamic: 32
+    static: 23
+  raw_modality_dims:
+    rad: 768
+    icd: 500
+  pool_dims:
+    icd: 50
+    rad: 50
+  top_icd_codes: 500
+  longformer_model: yikuan8/Clinical-Longformer
+  longformer_max_length: 4096
+  k_neighbors: 5
+  alpha_ema: 0.5
+  gin_dims: [128, 64, 32]
+  num_durations: 10
+  dropout: 0.3
+  use_temporal_edges: true
+  cause_specific_proj: false
+  cause_specific_gin: false
+  per_cause_hazard: true
+
+loss:
+  alpha_nll: 1.0
+  beta_rank: 0.1
+  lambda_reg: 0.1
+  rank_sigma: 0.5
+  cif_smooth_weight: 0.1
+  class_weights: null
+
+training:
+  batch_size: 32
+  grad_accum: 2
+  max_epochs: 100
+  patience: 12
+  lr: 1.0e-4
+  weight_decay: 1.0e-5
+  clip_norm: 1.0
+  scheduler: plateau
+  lr_patience: 5
+  num_workers: 2

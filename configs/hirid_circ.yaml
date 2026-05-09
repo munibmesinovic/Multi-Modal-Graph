@@ -1,0 +1,58 @@
+dataset:
+  name: hirid_circ
+  num_risks: 1
+  num_modalities: 2
+  modalities: [dynamic, static]
+  risk_names: [circ_failure]
+
+data:
+  raw_dir: data/hirid_circ/raw
+  processed_dir: data/hirid_circ/processed
+  cache_dir: data/hirid_circ/cache
+  splits: {train: 0.7, val: 0.1, test: 0.2}
+  seed: 42
+  n_hours: 6
+  n_blocks: 6
+  hours_per_block: 1
+  min_los_hours: 6
+  horizon_hours: 240.0
+  num_durations: 10
+  bin_strategy: quantile
+
+label_transform:
+  source_col: duration_raw
+  event_col: event
+
+model:
+  num_modalities: 2
+  modality_dims:
+    dynamic: 18
+    static: 17
+  pool_dims: {}
+  k_neighbors: 5
+  alpha_ema: 0.5
+  gin_dims: [64, 32]
+  num_durations: 10
+  dropout: 0.5
+  use_temporal_edges: true
+  cause_specific_proj: false
+  cause_specific_gin: false
+  per_cause_hazard: true
+
+loss:
+  alpha_nll: 1.0
+  beta_rank: 0.1
+  rank_sigma: 0.5
+  lambda_reg: 0.1
+  cif_smooth_weight: 0.1
+
+training:
+  batch_size: 128
+  max_epochs: 100
+  patience: 12
+  lr: 1.0e-4
+  weight_decay: 1.0e-3
+  clip_norm: 1.0
+  scheduler: plateau
+  lr_patience: 5
+  num_workers: 2
