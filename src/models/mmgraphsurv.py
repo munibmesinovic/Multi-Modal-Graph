@@ -1,21 +1,4 @@
-"""MM-GraphSurv: hierarchical multi-modal graph survival model.
 
-End-to-end implementation of the architecture in
-``GraphSurv/sample_paper.tex`` Algorithm 1, with the following corrections
-relative to the original (DySurv-era) GraphSurv codebase:
-
-  • Honours the s=6 windowed grid declared in the paper text rather than
-    the older 24-step hourly grid.
-  • Implements all four modalities (dynamic / static / ICD / radiology),
-    not just dynamic + static.
-  • Soft-pools high-dim ICD and radiology blocks to 50 nodes via two-layer
-    MLP soft-assignment (paper §3.2).
-  • Uses the hierarchical block fusion from §3.3 with W^(m→n) cross blocks
-    and matching I^(m→n) interpretability matrices.
-  • Supports competing risks (E parallel cause-specific MLP heads).
-  • Plug-and-play modality drop-out at inference: pass ``drop_modalities``
-    to ``forward`` to mask out one or more blocks (Table 6 reproduction).
-"""
 
 from __future__ import annotations
 
