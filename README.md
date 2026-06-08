@@ -91,15 +91,3 @@ node counts (`pool_dims`), competing-risk options
 (`cause_specific_proj`, `cause_specific_gin`, `per_cause_hazard`), and
 ablation switches (`fusion_mode: graph|mlp_concat`,
 `adjacency_mode: learned|uniform_frozen`).
-
-## Notes
-
-- `checkpoints/` and `data/` are gitignored. Trained weights are not
-  distributed with the repo.
-- The fusion block keeps an interpretability matrix `I^(m→n)` per
-  cross-modal edge; `forward()` returns the last-window fused
-  `A_fused` / `I_fused` for attribution.
-- For competing-risk datasets, the loss combines per-cause NLL, a
-  pairwise ranking term, the interpretability regulariser, and an
-  optional CIF-smoothness penalty (see `configs/{dataset}.yaml` →
-  `loss`).
