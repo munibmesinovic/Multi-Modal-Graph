@@ -5,8 +5,8 @@ checkpoints/
 *.pth
 *.safetensors
 
-# Data
-data/
+# Data (anchored to repo root so it does NOT match the src/data/ source module)
+/data/
 *.csv
 *.csv.gz
 *.parquet
