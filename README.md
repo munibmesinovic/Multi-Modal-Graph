@@ -28,7 +28,7 @@ cohort live upstream and produce the `.npy` arrays this code consumes from
 | Dataset | Risks                            | Modalities                |
 |---------|----------------------------------|---------------------------|
 | MIMIC-IV| ICU mortality                    | dynamic, static, ICD, rad |
-| eICU    | mortality, discharge (competing) | dynamic, static, ICD      |
+| eICU    | mortality, discharge (competing) | dynamic, static      |
 | MC-MED  | ICU admission, inpatient care    | dynamic, static, ICD, rad |
 | HiRID   | mortality (incl. circ. failure)  | dynamic, static           |
 
